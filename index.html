@@ -5,11 +5,28 @@
     <title>Hand Controlled Particle System</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
-        #video-container { position: absolute; top: 0; left: 0; opacity: 0; pointer-events: none; }
-        #ui { position: absolute; top: 20px; left: 20px; color: white; background: rgba(0,0,0,0.5); padding: 15px; border-radius: 8px; }
+        
+        /* UI Controls */
+        #ui { position: absolute; top: 20px; left: 20px; color: white; background: rgba(0,0,0,0.5); padding: 15px; border-radius: 8px; z-index: 20; }
         button { cursor: pointer; padding: 8px 12px; background: #333; color: #fff; border: 1px solid #555; margin-right: 5px; }
         button:hover { background: #555; }
-        .loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ff88; font-size: 24px; }
+        
+        /* Loading Text */
+        .loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ff88; font-size: 24px; pointer-events: none; }
+
+        /* CAMERA VIEW (Mini Version) */
+        #input_video {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 320px;    /* Width of the mini window */
+            height: 240px;   /* Height of the mini window */
+            z-index: 10;     /* Sits above the 3D particles */
+            border: 2px solid #00ff88; /* Green border */
+            border-radius: 10px;
+            transform: scaleX(-1); /* Mirror effect so left is left */
+            background: #000;
+        }
     </style>
 </head>
 <body>
@@ -32,7 +49,7 @@
 
 <div class="loading" id="loader">Loading Camera & AI Model...</div>
 
-<video id="input_video" style="display:none"></video>
+<video id="input_video" autoplay playsinline></video>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -42,7 +59,6 @@
 <script>
     // --- CONFIGURATION ---
     const PARTICLE_COUNT = 15000;
-    const PARTICLE_SIZE = 0.15;
     
     // --- THREE.JS SETUP ---
     const scene = new THREE.Scene();
@@ -68,7 +84,7 @@
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-    // Custom Shader Material for glow and performance
+    // Custom Shader Material
     const material = new THREE.ShaderMaterial({
         uniforms: {
             pointTexture: { value: new THREE.TextureLoader().load("https://threejs.org/examples/textures/sprites/spark1.png") },
@@ -92,14 +108,16 @@
                 if (dist < 15.0 && uInteraction != 0.0) {
                     vec3 dir = normalize(uMouse - pos);
                     if(uInteraction > 0.0) {
-                        pos += dir * (15.0 - dist) * 0.1; // Attract
+                        // Stronger attraction for pinch
+                        pos += dir * (15.0 - dist) * 0.15; 
                     } else {
-                        pos -= dir * (15.0 - dist) * 0.2; // Repel
+                        // Repel
+                        pos -= dir * (15.0 - dist) * 0.2; 
                     }
                 }
 
                 vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-                gl_PointSize = (10.0 * 20.0) / -mvPosition.z; // Size attenuation
+                gl_PointSize = (8.0 * 20.0) / -mvPosition.z; 
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
@@ -120,7 +138,7 @@
     const particles = new THREE.Points(geometry, material);
     scene.add(particles);
 
-    // --- SHAPE GENERATORS (MATH) ---
+    // --- SHAPE GENERATORS ---
     function getSpherePoint(i) {
         const r = 10;
         const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT);
@@ -133,7 +151,6 @@
     }
 
     function getSaturnPoint(i) {
-        // 70% sphere, 30% rings
         if (i < PARTICLE_COUNT * 0.7) {
             return getSpherePoint(i);
         } else {
@@ -141,7 +158,7 @@
             const r = 14 + Math.random() * 6;
             return {
                 x: r * Math.cos(angle),
-                y: r * Math.sin(angle) * 0.2, // Flattened y for ring effect
+                y: r * Math.sin(angle) * 0.2, 
                 z: r * Math.sin(angle)
             };
         }
@@ -149,18 +166,13 @@
 
     function getHeartPoint(i) {
         const t = (i / PARTICLE_COUNT) * Math.PI * 2;
-        // 3D Heart parametric equation
-        // Using a distribution logic for volume
-        const r = Math.random() * 2 * Math.PI;
-        const z = Math.random() * 20 - 10; 
-        // Simple 2D extrusion for stability
         const x = 16 * Math.pow(Math.sin(t), 3);
         const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
         return { x: x * 0.8, y: y * 0.8, z: (Math.random()-0.5) * 5 };
     }
     
     function getFlowerPoint(i) {
-        const k = 5; // petals
+        const k = 5; 
         const angle = (i / PARTICLE_COUNT) * Math.PI * 20;
         const r = Math.cos(k * angle) * 10;
         return {
@@ -171,14 +183,11 @@
     }
 
     function getAnimeSpiralPoint(i) {
-        // Fibonacci Spiral Sphere (Cool sci-fi anime effect)
         const offset = 2 / PARTICLE_COUNT;
         const increment = Math.PI * (3 - Math.sqrt(5));
-        
         const y = ((i * offset) - 1) + (offset / 2);
         const r = Math.sqrt(1 - Math.pow(y, 2));
         const phi = ((i + 1) % PARTICLE_COUNT) * increment;
-        
         const radius = 12;
         return {
             x: Math.cos(phi) * r * radius,
@@ -195,13 +204,9 @@
         };
     }
 
-    // --- SHAPE SWITCHING LOGIC ---
-    let currentShape = 'cube';
-
+    // --- SHAPE SWITCHING ---
     function setShape(shape) {
-        currentShape = shape;
         const positions = particles.geometry.attributes.position.array;
-        
         for (let i = 0; i < PARTICLE_COUNT; i++) {
             let p;
             switch (shape) {
@@ -211,14 +216,13 @@
                 case 'anime': p = getAnimeSpiralPoint(i); break;
                 default: p = getCubePoint(i);
             }
-            // Set Target
             targetPositions[i * 3] = p.x;
             targetPositions[i * 3 + 1] = p.y;
             targetPositions[i * 3 + 2] = p.z;
         }
     }
 
-    // --- MEDIAPIPE HAND TRACKING ---
+    // --- MEDIAPIPE LOGIC ---
     const videoElement = document.getElementById('input_video');
     
     function onResults(results) {
@@ -226,42 +230,37 @@
 
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             const hand = results.multiHandLandmarks[0];
-            const indexFinger = hand[8]; // Tip of index finger
-            const thumb = hand[4];       // Tip of thumb
+            const indexFinger = hand[8];
+            const thumb = hand[4];
 
-            // Map 2D video coordinates to 3D Scene coordinates
-            // (Rough approximation for demo purposes)
+            // Map Video Coords (0-1) to Scene Coords
             const x = (1 - indexFinger.x) * 40 - 20; 
             const y = (1 - indexFinger.y) * 30 - 15; 
             material.uniforms.uMouse.value.set(x, y, 0);
 
-            // Calculate distance between thumb and index (Pinch detection)
+            // Pinch Detection
             const pinchDist = Math.hypot(indexFinger.x - thumb.x, indexFinger.y - thumb.y);
 
             if (pinchDist < 0.05) {
-                // Fist/Pinch: Attract
-                material.uniforms.uInteraction.value = 1.0;
+                material.uniforms.uInteraction.value = 1.0; // Attract
             } else if (pinchDist > 0.15) {
-                // Open Palm: Repel/Scatter
-                material.uniforms.uInteraction.value = -1.0;
+                material.uniforms.uInteraction.value = -1.0; // Repel
             } else {
                 material.uniforms.uInteraction.value = 0.0;
             }
 
-            // Dynamic Color Change based on X position
+            // Color Changes
             const r = Math.abs(x) / 20;
             const g = Math.abs(y) / 15;
             const colors = particles.geometry.attributes.color.array;
             
-            // Only update some particles for performance
+            // Optimization: Update every 10th particle color to save CPU
             for(let i=0; i<PARTICLE_COUNT; i+=10) {
                  colors[i*3] = r + 0.2;
                  colors[i*3+1] = g + 0.2;
                  colors[i*3+2] = 1.0 - r;
             }
             particles.geometry.attributes.color.needsUpdate = true;
-        } else {
-            material.uniforms.uInteraction.value = 0.0;
         }
     }
 
@@ -292,24 +291,21 @@
         requestAnimationFrame(animate);
         
         material.uniforms.uTime.value += 0.01;
-        particles.rotation.y += 0.002; // Slow global rotation
+        particles.rotation.y += 0.002; 
 
-        // Lerp positions towards target (Morphing effect)
+        // Smooth Morphing
         const pos = particles.geometry.attributes.position.array;
-        
         for (let i = 0; i < PARTICLE_COUNT * 3; i++) {
-            pos[i] += (targetPositions[i] - pos[i]) * 0.05; // 0.05 is the speed of morphing
+            pos[i] += (targetPositions[i] - pos[i]) * 0.05; 
         }
         
         particles.geometry.attributes.position.needsUpdate = true;
         renderer.render(scene, camera);
     }
 
-    // Initial shape
     setShape('sphere');
     animate();
 
-    // Handle Resize
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
